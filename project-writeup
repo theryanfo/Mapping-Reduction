@@ -1,0 +1,212 @@
+## 1. Mapping Reduction Specification
+
+The Acceptance Problem for Turing Machines (ATM) is mapping reducible to the Halting Problem for Turing Machines (HaltTM).
+
+## 2. Program Documentation
+
+### Input Parsing
+
+The input to the program is a JSON-formatted string that represents a Turing machine and an input string. The input format includes the following:
+- **states**: A list of the machine's states.
+- **input_alphabet**: The input alphabet for the machine.
+- **tape_alphabet**: The tape alphabet for the machine.
+- **transition**: A dictionary representing the transition function.
+- **start_state**: The starting state of the machine.
+- **accept_states**: The set of accept states.
+- **reject_states**: The set of reject states.
+- **input**: The string to be tested.
+
+### Output Parsing
+
+The output of the program is the string "failure string" if the input does not represent a turing machine and input string pair. 
+Otherwise, the program outputs a transformed JSON string representing the new Turing machine M' and the input string w. The modified machine M' 
+combines the accept and reject states into the new accept states, and the reject states are removed to ensure that the machine accepts the input string
+in the case that the original pairing halted.
+
+
+## 3. Example Strings
+
+### Example 1: String in the Set (Is in HaltTM)
+
+```
+atm_negative_input = '''
+{
+    "tm": {
+        "states": ["q0", "q1", "q2"],
+        "input_alphabet": ["0", "1"],
+        "tape_alphabet": ["0", "1", "_"],
+        "transition": {
+            "('q0', '0')": ["q1", "0", "R"],
+            "('q1', '1')": ["q1", "1", "R"],
+            "('q1', '_')": ["q2", "_", "R"]
+        },
+        "start_state": "q0",
+        "accept_states": ["q2"],
+        "reject_states": ["q1"]
+    },
+    "input": "01"
+}
+'''
+```
+
+This string contains a valid Turing machine and input string. When the input string is ran of the machine, it halts and rejects in q1, so the string is in HaltTM
+
+
+### Example 2: String not in the Set (Not in HaltTM)
+
+```
+# Example of a Turing machine and string that doesn't halt
+non_halting_input = '''
+{
+    "tm": {
+        "states": ["q0", "q1", "q2", "q3"],
+        "input_alphabet": ["0", "1"],
+        "tape_alphabet": ["0", "1", "_"],
+        "transition": {
+            "('q0', '0')": ["q1", "0", "R"],
+            "('q1', '_')": ["q1", "_", "R"],
+            "('q1', '0')": ["q2", "0", "R"]
+        },
+        "start_state": "q0",
+        "accept_states": ["q2"],
+        "reject_states": ["q3"]
+    },
+    "input": "0"
+}
+```
+
+This string contains a valid Turing machine and input string. When the input string is ran on the machine, it loops on q1, so the string is not in HaltTM.
+
+## 4. The Code
+```
+import json
+
+def parse_input(string_representation):
+    try:
+        parsed = json.loads(string_representation)
+        tm = parsed.get("tm")
+        input_string = parsed.get("input")
+
+        required_keys = ['states', 'input_alphabet', 'tape_alphabet', 'transition', 'start_state', 'accept_states', 'reject_states']
+        if not all(key in tm for key in required_keys):
+            raise ValueError("Turing machine representation is missing required keys.")
+
+        if not isinstance(tm['transition'], dict):
+            raise ValueError("Transition function must be a dictionary.")
+        
+        return tm, input_string
+    except Exception as e:
+        # print(f"Error parsing input: {e}")
+        return None, None
+    
+
+def construct_M_prime(tm):
+    tm_prime = tm.copy()
+    tm_prime['accept_states'] += tm['reject_states']
+    tm_prime['reject_states'] = []
+    return tm_prime
+
+
+def mapping_reduction(string_representation):
+    tm, w = parse_input(string_representation)
+
+    if tm is None or w is None:
+        return "failure string" 
+    
+    M_prime = construct_M_prime(tm)
+
+    res = json.dumps({"tm": M_prime, "input": w})
+
+    return res
+'''
+```
+
+### The Testing
+```
+from mapping_reduction import mapping_reduction
+
+
+# Example of a Turing machine and string not in ATM that halts
+atm_negative_input = '''
+{
+    "tm": {
+        "states": ["q0", "q1", "q2"],
+        "input_alphabet": ["0", "1"],
+        "tape_alphabet": ["0", "1", "_"],
+        "transition": {
+            "('q0', '0')": ["q1", "0", "R"],
+            "('q1', '1')": ["q1", "1", "R"],
+            "('q1', '_')": ["q2", "_", "R"]
+        },
+        "start_state": "q0",
+        "accept_states": ["q2"],
+        "reject_states": ["q1"]
+    },
+    "input": "01"
+}
+'''
+
+# Example of a Turing machine and string that doesn't halt
+non_halting_input = '''
+{
+    "tm": {
+        "states": ["q0", "q1", "q2", "q3"],
+        "input_alphabet": ["0", "1"],
+        "tape_alphabet": ["0", "1", "_"],
+        "transition": {
+            "('q0', '0')": ["q1", "0", "R"],
+            "('q1', '_')": ["q1", "_", "R"],
+            "('q1', '0')": ["q2", "0", "R"]
+        },
+        "start_state": "q0",
+        "accept_states": ["q2"],
+        "reject_states": ["q3"]
+    },
+    "input": "0"
+}
+'''
+
+# Invalid input (missing reject_states in TM description)
+invalid_input_2 = '''
+{
+    "tm": {
+        "states": ["q0", "q1", "q2"],
+        "input_alphabet": ["0", "1"],
+        "tape_alphabet": ["0", "1", "_"],
+        "transition": {
+            "('q0', '0')": ["q1", "0", "R"],
+            "('q1', '1')": ["q2", "1", "R"]
+        },
+        "start_state": "q0",
+        "accept_states": ["q2"]
+    },
+    "input": "01"
+}
+'''
+
+# Test runner
+def run_tests():
+    test_cases = [
+        # ("String in ATM that halts", atm_positive_input),
+        ("String not in ATM that halts", atm_negative_input),
+        ("Non-Halting Input", non_halting_input),
+        # ("Invalid Input 1 (non-string)", invalid_input_1),
+        ("Invalid Input 2 (missing required keys)", invalid_input_2)
+    ]
+    
+    for name, case in test_cases:
+        print(f"Running test: {name}")
+        try:
+            result = mapping_reduction(case)
+            print(f"Result: {result}\n")
+        except Exception as e:
+            print(f"Error: {e}\n")
+
+
+# Call the test runner
+run_tests()
+
+```
+
+### Results
+
